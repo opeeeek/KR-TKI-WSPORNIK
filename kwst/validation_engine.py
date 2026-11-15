@@ -167,8 +167,8 @@ def post_validate(result) -> list[ValidationItem]:
     # 1. równowaga statyczna każdego modelu
     for name, sr in result.stm.items():
         sol = sr.solution
-        if sol.status == "error":
-            continue
+        if sol.status in ("error", "mechanism"):
+            continue   # model zmienny zgłaszany osobno jako błąd krytyczny
         ok = sol.equilibrium_ok
         items.append(ValidationItem(f"Równowaga statyczna — {name}", ok,
                                     f"max residuum węzłowe {sol.max_residual:.2e} N; ΣFx={sol.global_residual[0]:.2e} N, "

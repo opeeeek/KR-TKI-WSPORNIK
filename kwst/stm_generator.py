@@ -76,6 +76,7 @@ class SideParams:
     x_lo: float
     x_hi_geom: float
     notes: list[str] = field(default_factory=list)
+    T_anch: float | None = None   # nośność zakotwień cięgna (kryterium doboru x_c w trybie sprawdzenia)
 
 
 @dataclass
@@ -107,7 +108,7 @@ class SideState:
         return math.degrees(self.theta)
 
     def eta_concrete(self) -> float:
-        return max(v for k, v in self.eta.items() if k != "tie")
+        return max(v for k, v in self.eta.items() if k not in ("tie", "anchorage"))
 
     def eta_max(self) -> float:
         return max(self.eta.values())
@@ -263,6 +264,8 @@ def evaluate(p: SideParams, x_c: float) -> SideState:
     }
     if p.As_prov is not None:
         st.eta["tie"] = (T / (p.As_prov * p.fyd)) if p.As_prov > 0 else math.inf
+        if p.T_anch is not None and math.isfinite(p.T_anch):
+            st.eta["anchorage"] = T / p.T_anch if p.T_anch > 0 else math.inf
     return st
 
 
@@ -340,10 +343,17 @@ def choose_xc(p: SideParams, st: StmSettings, design: bool, x_c_user: float | No
                                               f"[{lo:.1f}; {hi:.1f}] mm (geometria / tan θ wg J.3(1)).")
         return x, info, feasible, reason
     if not feasible:
-        # model wyświetlany dla najbliższej granicy — wynik oznaczony jako niestosowalny
-        t_hi = _tan_at(p, p.x_hi_geom)
-        x = p.x_hi_geom if t_hi > p.tan_max else p.x_lo
-        info["method"] = "granica przedziału (model niestosowalny)"
+        # model poza zakresem J.3 — pole naprężeń dobrane wyłącznie informacyjnie (min. wykorzystanie),
+        # wynik oznaczony jako niestosowalny
+        lo_g, hi_g = p.x_lo, p.x_hi_geom
+        obj = (lambda x: evaluate(p, x).eta_max()) if (p.As_prov is not None and not design) else \
+            (lambda x: evaluate(p, x).eta_concrete())
+        xs = [lo_g + (hi_g - lo_g) * i / 47 for i in range(48)]
+        k = min(range(48), key=lambda i: obj(xs[i]))
+        x = _golden(obj, xs[max(k - 1, 0)], xs[min(k + 1, 47)])
+        if obj(x) > obj(xs[k]):
+            x = xs[k]
+        info["method"] = "model poza zakresem J.3 — pole naprężeń informacyjne (min. wykorzystanie)"
         return x, info, False, reason
     if st.lever_arm == "node_limit":
         target = min(p.sigma_CCC, p.sigma_strut)
@@ -448,6 +458,7 @@ def build_corbel_model(gm: GeometryModel, combo: DesignCombination, mats: Materi
             continue
         si = side_inputs.get(sd, {})
         p = build_side_params(gm, sd, act, mats, ps, st, c_t, As_prov, si.get("a_H_user"), si.get("d_user"))
+        p.T_anch = si.get("T_anch")
         if p.a_ef <= 0:
             msgs.append(Message(Level.ERROR, f"Strona {sd}: wypadkowa obciążenia poza płytą oporową "
                                              f"(e = {p.e_rel:.1f} mm, a_p = {p.a_p:.0f} mm).", f"side:{sd}"))

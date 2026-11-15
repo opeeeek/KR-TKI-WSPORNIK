@@ -62,7 +62,11 @@ def cover_requirements(m: MaterialsInput, ps: ParameterSet, phi_main: float, phi
         c_nom = m.c_nom_user
         user = True
     else:
-        c_nom = math.ceil(max(req_link, req_main - phi_link if phi_link > 0 else req_main) / 5.0) * 5.0
+        # c_nom do zbrojenia zewnętrznego; pręty główne: od góry c_nom + φ_v (lub c_nom bez strzemion pionowych),
+        # z boku c_nom + φ_strzemion
+        need_top = req_main - (phi_vlink if has_v else 0.0)
+        need_side = req_main - phi_link
+        c_nom = math.ceil(max(req_link, need_top, need_side) / 5.0 - 1e-9) * 5.0
         user = False
     c_top = c_nom + (phi_vlink if has_v else 0.0)
     c_side = c_nom + phi_link

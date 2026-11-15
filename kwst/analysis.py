@@ -34,6 +34,8 @@ from .validation_engine import validate_input, post_validate, hash_obj, result_f
 
 log = logging.getLogger("kwst.analysis")
 
+STRENGTH_GROUPS = {"Krzyżulce", "Węzły", "Cięgna", "Docisk", "Rozłupywanie", "Zakotwienie",
+                   "Zbrojenie poprzeczne", "Mechanizmy dodatkowe", "Połączenia prefabrykowane"}
 STATUS_RANK = {CheckStatus.FAIL: 3, CheckStatus.VERIFY: 2, CheckStatus.OK: 1, CheckStatus.NA: 0}
 
 LIMITATIONS = [
@@ -90,9 +92,14 @@ class AnalysisResult:
         return [m for m in self.messages if m.level == Level.ERROR]
 
     def critical(self) -> Check | None:
-        cands = [c for c in self.checks if c.eta is not None and c.status in (CheckStatus.OK, CheckStatus.FAIL)
-                 and math.isfinite(c.eta)]
-        fails_inf = [c for c in self.checks if c.status == CheckStatus.FAIL and (c.eta is None or not math.isfinite(c.eta))]
+        """Element krytyczny — maksymalne wykorzystanie spośród sprawdzeń nośności (bez wymagań
+        konstrukcyjnych spełnianych z definicji, np. minimalna średnica trzpienia)."""
+        def strength(c: Check) -> bool:
+            return c.group in STRENGTH_GROUPS and not c.id.endswith(("_T81", "_LEG"))
+        cands = [c for c in self.checks if strength(c) and c.eta is not None and
+                 c.status in (CheckStatus.OK, CheckStatus.FAIL) and math.isfinite(c.eta)]
+        fails_inf = [c for c in self.checks if c.status == CheckStatus.FAIL and
+                     (c.eta is None or not math.isfinite(c.eta))]
         if fails_inf:
             return fails_inf[0]
         return max(cands, key=lambda c: c.eta) if cands else None
@@ -220,17 +227,22 @@ def _mandrel_and_ab(ml: MainLayout, cv: CoverResult, anchor: str, user_m: float 
     return phi_m, ab, "przyjęta średnica trzpienia" if user_m is not None else "φ_m = φ_m,min wg tabl. 8.1N"
 
 
-def _anchorage_checks(v: Variant, gm: GeometryModel, side: str, ml: MainLayout, cv: CoverResult, mb: MainBarsInput,
-                      T: float, mats: Materials, ps: ParameterSet, combo: str, links: LinksLayout | None,
-                      double: bool, dT: float = 0.0) -> tuple[list[Check], dict[str, AnchorageResult], bool, str,
-                                                              dict[str, float]]:
-    """Komplet sprawdzeń zakotwienia i gięcia dla jednej strony. Zwraca (checks, wyniki, ok, przyczyna, φ_m)."""
-    checks: list[Check] = []
-    results: dict[str, AnchorageResult] = {}
+@dataclass
+class _AnchorSetup:
+    """Geometria zakotwień jednej strony (długości mierzone wzdłuż osi pręta, rys. 8.1a)."""
+    load: AnchorageInput
+    col: AnchorageInput
+    load_desc: str
+    col_desc: str
+    load_bend: tuple | None = None      # (φ_m, a_b, opis, r, prosta, łuk, ramię_max, ramię_użytk_lub_None)
+    col_bend: tuple | None = None
+    ext: float = 0.0
+
+
+def _anchor_setup(gm: GeometryModel, side: str, ml: MainLayout, cv: CoverResult, mb: MainBarsInput, T: float,
+                  links: LinksLayout | None, ps: ParameterSet, double: bool, dT: float) -> _AnchorSetup:
     geo = _anchor_geometry(gm, side, cv)
     sg = gm.sides[side]
-    reason = ""
-    mandrels = {}
     sum_Ast = 0.0
     if links is not None and mb.alpha3_mode == "computed":
         sum_Ast = sum(2.0 * bar_area(links.v_phi) for x in links.v_positions
@@ -238,73 +250,167 @@ def _anchorage_checks(v: Variant, gm: GeometryModel, side: str, ml: MainLayout, 
     base = dict(phi=ml.phi, As_prov=ml.As, force=T, a_clear=ml.a_clear if ml.n >= 2 else 1e6,
                 c1=cv.c_side_main, c=cv.c_top_main, bond=mb.bond, alpha3_mode=mb.alpha3_mode, K=mb.K_alpha3,
                 sum_Ast=sum_Ast, phi_t=mb.welded_bar_phi, s_cc=ml.s_cc if ml.n >= 2 else 0.0)
+    ext = ps.v("hook_extension") * ml.phi
+    load_bend = None
+    l_load = geo["l_load"]
+    load_desc = (f"od wewnętrznej krawędzi płyty (ξ = {geo['load_start']:.0f} mm) do zewnętrznej krawędzi pręta "
+                 f"(ξ = {geo['load_end']:.0f} mm)")
+    if mb.anchor_load == "bend_down":
+        phi_m, ab, how = _mandrel_and_ab(ml, cv, "bend_down", mb.mandrel_load, ps)
+        r = (phi_m + ml.phi) / 2.0
+        straight = geo["l_load"] - (r + ml.phi / 2.0)
+        arc = math.pi * r / 2.0
+        leg_max = sg.h_e - cv.c_nom - ml.phi / 2.0 - (cv.c_top_main + ml.phi / 2.0 + r)
+        load_bend = (phi_m, ab, how, r, straight, arc, leg_max, mb.front_leg)
+        l_load = straight + arc + max(0.0, min(leg_max, mb.front_leg if mb.front_leg is not None else leg_max))
+        load_desc = ("wzdłuż osi pręta od wewnętrznej krawędzi płyty: odcinek prosty + łuk + ramię pionowe "
+                     "(rys. 8.1a)")
+    elif mb.anchor_load == "loop":
+        load_bend = _mandrel_and_ab(ml, cv, "loop", None, ps) + (0.0, 0.0, 0.0, 0.0, None)
     a_load = AnchorageInput(id=f"ANCH_LOAD_{side}", title=f"Zakotwienie zbrojenia głównego od strony obciążenia "
-                            f"({SIDE_NAME[side]})", anchor=mb.anchor_load, l_avail=geo["l_load"],
+                            f"({SIDE_NAME[side]})", anchor=mb.anchor_load, l_avail=l_load,
                             element_ref=f"member:T{side}", **base)
-    c1, r1 = anchorage_check(a_load, mats, ps, combo, "; zał. J.3(4), §6.5.4(7)")
-    c1.notes.append(f"Długość dostępna od wewnętrznej krawędzi płyty (ξ = {geo['load_start']:.0f} mm) do zewnętrznej "
-                    f"krawędzi pręta (ξ = {geo['load_end']:.0f} mm).")
-    checks.append(c1)
+    col_bend = None
+    if double:
+        a_col = AnchorageInput(id="ANCH_COL_DT", title="Przekazanie różnicy sił cięgien w słupie (pręty ciągłe)",
+                               anchor="continuous", l_avail=gm.h_col - 2.0 * gm.column_cover,
+                               element_ref="node:C", **{**base, "force": dT})
+        col_desc = "szerokość słupa w świetle otulin (pręty ciągłe przez słup)"
+    else:
+        l_col = geo["l_col"]
+        col_desc = ("od prętów pionowych przy bliższej krawędzi słupa do zewnętrznej krawędzi pręta przy dalszej "
+                    "krawędzi (wewnątrz prętów słupa) — J.3(4)")
+        if mb.anchor_column == "bend_down":
+            phi_m, ab, how = _mandrel_and_ab(ml, cv, "bend_down", mb.mandrel_column, ps)
+            r = (phi_m + ml.phi) / 2.0
+            straight = geo["l_col"] - (r + ml.phi / 2.0)
+            arc = math.pi * r / 2.0
+            leg_max = gm.below + sg.h_c - ml.c_t - r
+            col_bend = (phi_m, ab, how, r, straight, arc, leg_max, mb.column_leg)
+            l_col = straight + arc + max(0.0, min(leg_max, mb.column_leg if mb.column_leg is not None else leg_max))
+            col_desc = ("wzdłuż osi pręta od prętów pionowych przy bliższej krawędzi słupa: odcinek poziomy + łuk + "
+                        "ramię pionowe w słupie (rys. 8.1a, J.3(4))")
+        a_col = AnchorageInput(id=f"ANCH_COL_{side}", title="Zakotwienie zbrojenia głównego w słupie",
+                               anchor=mb.anchor_column, l_avail=l_col, element_ref=f"member:T{side}", **base)
+    return _AnchorSetup(a_load, a_col, load_desc, col_desc, load_bend, col_bend, ext)
+
+
+def _anchor_capacity(a: AnchorageInput, mats: Materials, ps: ParameterSet) -> float:
+    """Największa siła, dla której l_bd ≤ l_dost (bisekcja; l_bd rośnie monotonicznie z σ_sd)."""
+    if a.anchor in ("mechanical",) or a.As_prov <= 0:
+        return math.inf
+    Fmax = a.As_prov * mats.steel.fyd
+
+    def ok(F: float) -> bool:
+        return anchorage_length(AnchorageInput(**{**a.__dict__, "force": F}), mats, ps).lbd <= a.l_avail + 1e-9
+    if ok(Fmax):
+        return math.inf
+    if not ok(1e-3):
+        return 0.0
+    lo, hi = 0.0, Fmax
+    for _ in range(50):
+        mid = 0.5 * (lo + hi)
+        if ok(mid):
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def _anchor_caps(gm, ml, cv, mb, mats, ps, double) -> dict[str, float]:
+    caps = {}
+    for sd in gm.sides:
+        su = _anchor_setup(gm, sd, ml, cv, mb, 0.0, None, ps, double, 0.0)
+        c = _anchor_capacity(su.load, mats, ps)
+        if not double:
+            c = min(c, _anchor_capacity(su.col, mats, ps))
+        caps[sd] = c
+    return caps
+
+
+def _bend_checks(prefix: str, title: str, bend: tuple, ml: MainLayout, Fbt: float, mats, ps, combo, ref,
+                 lbd: float | None, ext: float, depth_label: str) -> tuple[list[Check], float]:
+    """Sprawdzenia gięcia (tabl. 8.1N, (8.1)) i mieszczenia się ramienia; zwraca (checks, przyjęte ramię)."""
+    phi_m, ab, how, r, straight, arc, leg_max, leg_user = bend
+    out = mandrel_checks(prefix, f"{title} ({how})", ml.phi, phi_m, Fbt, ab, mats, ps, combo, ref)
+    if leg_max <= 0 and straight == 0 and arc == 0:
+        return out, 0.0     # pętla — bez ramienia
+    if leg_user is not None:
+        leg = leg_user
+    else:
+        need = (lbd - straight - arc) if lbd is not None else ext
+        leg = math.ceil(max(ext, need) / 10.0) * 10.0
+        leg = min(leg, max(leg_max, 0.0)) if leg > leg_max else leg
+    out.append(make(prefix + "_LEG", "Wykonalność", f"{title} — ramię pionowe za odgięciem",
+                    "EN 1992-1-1 §8.4.1, rys. 8.1b (przedłużenie ≥ 5φ); geometria elementu", Basis.NORMATIVE,
+                    "5φ ≤ l_ramienia ≤ l_ramienia,max",
+                    {"l_ramienia,max": depth_label},
+                    f"l_ramienia = {mm(leg)} (min. 5φ = {mm(ext)}; max = {mm(leg_max)})",
+                    max(ext, leg), max(leg_max, 0.0) if leg >= ext - 1e-9 else leg, Kind.LENGTH, combo, ref,
+                    E_label="wymagane", R_label="dostępne"))
+    return out, leg
+
+
+def _anchorage_checks(v: Variant, gm: GeometryModel, side: str, ml: MainLayout, cv: CoverResult, mb: MainBarsInput,
+                      T: float, mats: Materials, ps: ParameterSet, combo: str, links: LinksLayout | None,
+                      double: bool, dT: float = 0.0) -> tuple[list[Check], dict[str, AnchorageResult], bool, str,
+                                                              dict[str, float]]:
+    """Komplet sprawdzeń zakotwienia i gięcia dla jednej strony. Zwraca (checks, wyniki, ok, przyczyna, geometria)."""
+    checks: list[Check] = []
+    results: dict[str, AnchorageResult] = {}
+    sg = gm.sides[side]
+    geo = _anchor_geometry(gm, side, cv)
+    su = _anchor_setup(gm, side, ml, cv, mb, T, links, ps, double, dT)
+    reason = ""
+    info: dict[str, float] = {}
+    sigma = min(T / ml.As, mats.steel.fyd) if ml.As > 0 else 0.0
+    Fbt = sigma * bar_area(ml.phi)
+    # --- strona obciążenia --------------------------------------------------
+    lbd_load = anchorage_length(su.load, mats, ps).lbd if su.load.anchor != "mechanical" else None
+    if su.load_bend is not None and su.load.anchor == "bend_down":
+        cs, leg = _bend_checks(f"MANDREL_LOAD_{side}", "Gięcie zbrojenia głównego w dół na końcu wspornika",
+                               su.load_bend, ml, Fbt, mats, ps, combo, f"member:T{side}", lbd_load, su.ext,
+                               "wysokość końca wspornika minus otuliny i promień gięcia")
+        _, _, _, r, straight, arc, leg_max, _ = su.load_bend
+        su.load.l_avail = straight + arc + max(0.0, min(leg, leg_max))
+        info.update({"load": su.load_bend[0], "leg_front": leg})
+        checks += cs
+    elif su.load_bend is not None:
+        phi_m, ab, how = su.load_bend[:3]
+        info["load"] = phi_m
+        checks += mandrel_checks(f"MANDREL_LOAD_{side}", f"Gięcie pętli zbrojenia głównego ({how})", ml.phi, phi_m,
+                                 Fbt, ab, mats, ps, combo, f"member:T{side}")
+    c1, r1 = anchorage_check(su.load, mats, ps, combo, "; zał. J.3(4), §6.5.4(7)")
+    c1.notes.append("Długość dostępna: " + su.load_desc + f" = {su.load.l_avail:.0f} mm.")
+    checks.insert(0, c1)
     if r1:
         results[f"load_{side}"] = r1
     if c1.status == CheckStatus.FAIL:
         reason = "l_bd > l_dost (strona obciążenia)"
-    # zakotwienie od strony słupa
-    if double:
-        sig_diff = dT
-        a_col = AnchorageInput(id="ANCH_COL_DT", title="Przekazanie różnicy sił cięgien w słupie (pręty ciągłe)",
-                               anchor="continuous", l_avail=gm.h_col - 2.0 * gm.column_cover,
-                               element_ref="node:C", **{**base, "force": sig_diff})
-        c2, r2 = anchorage_check(a_col, mats, ps, combo, "; zał. J.3(4)")
-        c2.notes.append("Siła do przekazania przyczepnością: |T_P − T_L| na szerokości słupa.")
-    else:
-        a_col = AnchorageInput(id=f"ANCH_COL_{side}", title="Zakotwienie zbrojenia głównego w słupie",
-                               anchor=mb.anchor_column, l_avail=geo["l_col"], element_ref=f"member:T{side}", **base)
-        c2, r2 = anchorage_check(a_col, mats, ps, combo, "; zał. J.3(4)")
-        c2.notes.append("Długość dostępna mierzona od prętów pionowych przy bliższej krawędzi słupa do zewnętrznej "
-                        "krawędzi odgięcia przy dalszej krawędzi (wewnątrz prętów słupa) — J.3(4).")
-    checks.append(c2)
+    # --- strona słupa -------------------------------------------------------
+    lbd_col = anchorage_length(su.col, mats, ps).lbd if su.col.anchor != "mechanical" else None
+    if su.col_bend is not None:
+        cs, leg = _bend_checks(f"MANDREL_COL_{side}", "Gięcie zbrojenia głównego w słupie", su.col_bend, ml, Fbt,
+                               mats, ps, combo, "node:C", lbd_col, su.ext, "długość słupa poniżej wspornika")
+        _, _, _, r, straight, arc, leg_max, _ = su.col_bend
+        su.col.l_avail = straight + arc + max(0.0, min(leg, leg_max))
+        info.update({"column": su.col_bend[0], "leg_col": leg})
+        checks += cs
+    c2, r2 = anchorage_check(su.col, mats, ps, combo, "; zał. J.3(4)")
+    c2.notes.append("Długość dostępna: " + su.col_desc + f" = {su.col.l_avail:.0f} mm.")
+    checks.insert(1, c2)
     if r2:
         results[c2.id] = r2
     if c2.status == CheckStatus.FAIL and not reason:
         reason = "l_bd > l_dost (strona słupa)"
-    sigma = min(T / ml.As, mats.steel.fyd) if ml.As > 0 else 0.0
-    Fbt = sigma * bar_area(ml.phi)
-    # gięcie od strony obciążenia
-    if mb.anchor_load in ("loop", "bend_down"):
-        phi_m, ab, how = _mandrel_and_ab(ml, cv, mb.anchor_load, mb.mandrel_load, ps)
-        mandrels["load"] = phi_m
-        cs = mandrel_checks(f"MANDREL_LOAD_{side}", f"Gięcie zbrojenia głównego przy końcu wspornika ({how})",
-                            ml.phi, phi_m, Fbt, ab, mats, ps, combo, f"member:T{side}")
-        checks += cs
-        if any(c.status == CheckStatus.FAIL for c in cs) and not reason:
-            reason = "średnica gięcia (tabl. 8.1N / wzór (8.1)) — strona obciążenia"
-        if mb.anchor_load == "bend_down":
-            ext = ps.v("hook_extension") * ml.phi
-            avail = sg.h_e - cv.c_top_main - cv.c_nom - ml.phi / 2.0
-            leg = mb.front_leg if mb.front_leg is not None else ext
-            c3 = make(f"FIT_FRONT_{side}", "Wykonalność", "Mieszczenie się odgięcia w dół na końcu wspornika",
-                      "EN 1992-1-1 §8.4.1, rys. 8.1b — geometria", Basis.NORMATIVE,
-                      "φ_m/2 + φ + max(l_ramienia; 5φ) ≤ h_e − c_góra − c_dół",
-                      {}, f"wymagane {mm(phi_m / 2 + ml.phi + max(leg, ext))}; dostępne {mm(avail)}",
-                      phi_m / 2 + ml.phi + max(leg, ext), avail, Kind.LENGTH, combo, f"member:T{side}",
-                      E_label="wymagane", R_label="dostępne")
-            checks.append(c3)
-            if c3.status == CheckStatus.FAIL and not reason:
-                reason = "odgięcie nie mieści się w wysokości końca wspornika"
+    if any(c.status == CheckStatus.FAIL for c in checks[2:]) and not reason:
+        bad = next(c for c in checks[2:] if c.status == CheckStatus.FAIL)
+        reason = bad.title
     if mb.anchor_load == "loop" and ml.n % 2:
         checks.append(make(f"FIT_LOOP_{side}", "Wykonalność", "Pętle poziome — parzysta liczba prętów",
                            "Zasady konstruowania", Basis.NORMATIVE, "n parzyste", {}, f"n = {ml.n}", None, None,
                            Kind.NONE, combo, f"member:T{side}", status=CheckStatus.FAIL))
         reason = reason or "nieparzysta liczba prętów dla pętli"
-    if not double and mb.anchor_column == "bend_down":
-        phi_m, ab, how = _mandrel_and_ab(ml, cv, "bend_down", mb.mandrel_column, ps)
-        mandrels["column"] = phi_m
-        cs = mandrel_checks(f"MANDREL_COL_{side}", f"Gięcie zbrojenia głównego w słupie ({how})", ml.phi, phi_m, Fbt,
-                            ab, mats, ps, combo, "node:C")
-        checks += cs
-        if any(c.status == CheckStatus.FAIL for c in cs) and not reason:
-            reason = "średnica gięcia w słupie"
     # zbrojenie musi obejmować cały węzeł A (6.5.4(7))
     checks.append(make(f"NODE_A_ANCH_{side}", "Zakotwienie",
                        "Zbrojenie główne przechodzi przez cały węzeł A (poza zewnętrzną krawędź płyty)",
@@ -314,8 +420,7 @@ def _anchorage_checks(v: Variant, gm: GeometryModel, side: str, ml: MainLayout, 
                        E_label="ξ_płyta", R_label="ξ_pręt"))
     if checks[-1].status == CheckStatus.FAIL and not reason:
         reason = "pręty nie obejmują węzła A"
-    ok = not reason
-    return checks, results, ok, reason, mandrels
+    return checks, results, not reason, reason, info
 
 
 def _design_T(gm, combos, mats, ps, st, c_t, side_inputs) -> dict[str, float]:
@@ -359,7 +464,6 @@ def _run_auto(v: Variant, res: AnalysisResult, ps: ParameterSet) -> None:
 
     links_lay: dict[str, LinksLayout] = {}
     prev_sig = None
-    final_checks: list[Check] = []
     for outer in range(4):
         cv = cover_requirements(v.materials, ps, mb.phi, li.h_phi, li.v_phi, li.v_count > 0, li.h_count > 0)
         if ri.main.auto:
@@ -383,9 +487,16 @@ def _run_auto(v: Variant, res: AnalysisResult, ps: ParameterSet) -> None:
             cand = design_main_bars(gm, v.materials, ri, ps, as_req, anchor_ok, dlog)
             if cand is None:
                 res.design_log += dlog
+                reasons = []
+                for line in dlog:
+                    if " (" in line and ")" in line:
+                        r_ = line[line.index(" (") + 2:line.rindex(")")]
+                        if r_ not in reasons:
+                            reasons.append(r_)
                 res.messages.append(Message(Level.ERROR, "Automatyczny dobór zbrojenia głównego: brak wykonalnego "
-                                                         "układu prętów (rozstaw / zakotwienie / gięcie) — zmień "
-                                                         "geometrię, klasę betonu lub dobierz zbrojenie ręcznie.",
+                                                         "układu prętów. Przyczyny: " + "; ".join(reasons[:4]) +
+                                            ". Zmień geometrię (wysięg, wysokość końca, położenie płyty), typ "
+                                            "zakotwienia, klasę betonu lub dobierz zbrojenie ręcznie.",
                                             "reinforcement.main"))
                 return
             mb.phi, mb.n_per_layer, mb.layers, mb.anchor_load = cand.phi, cand.n, cand.layers, cand.anchor_load
@@ -395,8 +506,11 @@ def _run_auto(v: Variant, res: AnalysisResult, ps: ParameterSet) -> None:
             res.design_log.append(f"Przyjęto zbrojenie główne: {cand.layout.desc()} (A_s = {cand.layout.As:.0f} mm² "
                                   f"≥ A_s,req = {cand.As_req:.0f} mm²), kotwienie: {ANCHOR_LABEL[cand.anchor_load]}.")
         ml = main_layout(gm.b, cv, mb.phi, mb.n_per_layer, mb.layers, mb.layer_gap, v.materials.d_g, ps)
+        # nośność zakotwień jako dodatkowe kryterium doboru pola naprężeń (x_c)
+        caps = _anchor_caps(gm, ml, cv, mb, mats, ps, double)
+        side_chk = {sd: {**side_inputs.get(sd, {}), "T_anch": caps.get(sd)} for sd in gm.sides}
         # sprawdzenie modelu dla wszystkich kombinacji SGN przy przyjętym zbrojeniu
-        stm = {c.name: build_corbel_model(gm, c, mats, ps, st, ml.c_t, ml.As, False, side_inputs) for c in uls}
+        stm = {c.name: build_corbel_model(gm, c, mats, ps, st, ml.c_t, ml.As, False, side_chk) for c in uls}
         gov = _governing(stm)
         # strzemiona
         if ri.links.auto:
@@ -408,7 +522,7 @@ def _run_auto(v: Variant, res: AnalysisResult, ps: ParameterSet) -> None:
         prev_sig = sig
     # komplet sprawdzeń (z iteracyjnym zwiększaniem strzemion przy doborze automatycznym)
     for _ in range(8):
-        checks = _all_checks(v, res, ps, gm, mats, cv, ml, mb, li, links_lay, stm, uls, sls, side_inputs, double)
+        checks = _all_checks(v, res, ps, gm, mats, cv, ml, mb, li, links_lay, stm, uls, sls, side_chk, double)
         if not ri.links.auto:
             break
         need_more = [c for c in checks if c.status == CheckStatus.FAIL and

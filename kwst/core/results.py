@@ -108,15 +108,18 @@ class Verdict:
             return Verdict("BLOCKED", "OBLICZENIA ZABLOKOWANE",
                            "Wykryto błędy krytyczne danych lub modelu obliczeniowego "
                            f"({len(errors)}). Wynik pozytywny jest niedozwolony.", False)
+        model_verify = [c for c in verify if c.group == "Model"]
+        if model_verify:
+            extra = (f" Dodatkowo {len(fails)} sprawdzeń nie jest spełnionych w modelu informacyjnym." if fails else "")
+            return Verdict("OUT_OF_SCOPE", "MODEL POZA ZAKRESEM STOSOWANIA",
+                           "Przyjęty model obliczeniowy (J.3) nie jest właściwy dla tej geometrii / obciążenia "
+                           f"({', '.join(c.id for c in model_verify)}). Wymagana alternatywna metoda projektowania — "
+                           "program jej nie wykonuje; pozytywny wniosek ogólny nie może zostać sformułowany." + extra,
+                           False)
         if fails:
             return Verdict("FAIL", "NIE SPEŁNIONO",
                            f"Co najmniej jedno sprawdzenie nie jest spełnione ({len(fails)}). "
                            "Wspornik w obecnej postaci nie może zostać przyjęty.", False)
-        model_verify = [c for c in verify if c.group == "Model"]
-        if model_verify:
-            return Verdict("CONDITIONAL", "WYNIK NIEROZSTRZYGNIĘTY",
-                           "Model obliczeniowy wymaga osobnej weryfikacji (zakres stosowalności). "
-                           "Pozytywny wniosek ogólny nie może zostać sformułowany.", False)
         txt = ("Wszystkie sprawdzenia objęte zakresem programu są spełnione. "
                f"Pozycje wymagające osobnej weryfikacji: {len(verify)} — wymienione w zestawieniu; "
                "wynik lokalnego modelu STM nie potwierdza nośności słupa, połączenia ani całej konstrukcji.")

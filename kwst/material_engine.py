@@ -70,7 +70,8 @@ class ConcreteProps:
                         else 2.12 * math.log(1.0 + self.fcm / 10.0))
         if abs(fctm_formula - self.fctm) > 0.051 + 1e-9:
             issues.append(f"f_ctm tablicowe {self.fctm} ≠ wzór {fctm_formula:.2f}")
-        if abs(0.7 * self.fctm - self.fctk005) > 0.051 + 1e-9:
+        # wartości tablicowe zaokrąglone do 0,1 MPa — porównanie z wartością niezaokrągloną 0,7·f_ctm(wzór)
+        if abs(0.7 * fctm_formula - self.fctk005) > 0.051 + 1e-9:
             issues.append(f"f_ctk,0,05 {self.fctk005} ≠ 0,7·f_ctm")
         Ecm_formula = 22.0 * (self.fcm / 10.0) ** 0.3 * 1000.0
         if abs(Ecm_formula - self.Ecm) > 600.0:

@@ -37,8 +37,8 @@ class Construction(str, Enum):
 class ColumnInput:
     h_col: float = 400.0       # wymiar słupa w płaszczyźnie wspornika [mm]
     b_col: float = 400.0       # wymiar słupa prostopadle do płaszczyzny [mm]
-    above: float = 600.0       # długość słupa nad wspornikiem (rysunek) [mm]
-    below: float = 900.0       # długość słupa pod wspornikiem (rysunek) [mm]
+    above: float = 400.0       # długość słupa nad wspornikiem (rysunek) [mm]
+    below: float = 700.0       # długość słupa pod wspornikiem (rysunek; ogranicza ramię zakotwienia) [mm]
     cover: float = 30.0        # otulina nominalna słupa (do strzemion) [mm]
     phi_long: float = 20.0     # średnica prętów podłużnych słupa [mm]
     phi_link: float = 8.0      # średnica strzemion słupa [mm]

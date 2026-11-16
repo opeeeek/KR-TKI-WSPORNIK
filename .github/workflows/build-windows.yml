@@ -1,8 +1,15 @@
 name: Budowa Windows (.exe)
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag wydania GitHub (puste = tylko artefakt, bez wydania)"
+        required: false
+        default: ""
   push:
     tags: ["v*"]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: windows-latest
@@ -28,9 +35,23 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
+      - name: Paczka przenośna (zip)
+        shell: pwsh
+        run: Compress-Archive -Path dist/KrotkiWspornikST -DestinationPath dist/KrotkiWspornikST-1.0.0-portable-win64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: KrotkiWspornikST-windows
           path: |
             dist/KrotkiWspornikST
             dist/installer/*.exe
+      - name: Wydanie GitHub (instalator do pobrania)
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: KRÓTKI WSPORNIK ST 1.0.0 (Windows)
+          body_path: packaging/RELEASE_NOTES.md
+          files: |
+            dist/installer/*.exe
+            dist/KrotkiWspornikST-1.0.0-portable-win64.zip

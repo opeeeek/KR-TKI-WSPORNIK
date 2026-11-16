@@ -1,0 +1,36 @@
+name: Budowa Windows (.exe)
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: Testy
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
+      - name: PyInstaller
+        run: pyinstaller --noconfirm --clean packaging/krotki_wspornik_st.spec
+      - name: Autotest zbudowanej aplikacji (--selftest)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist/KrotkiWspornikST/KrotkiWspornikST.exe" -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:APPDATA/KrotkiWspornikST/selftest.log" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "Autotest zakończony błędem $($p.ExitCode)" }
+      - name: Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KrotkiWspornikST-windows
+          path: |
+            dist/KrotkiWspornikST
+            dist/installer/*.exe

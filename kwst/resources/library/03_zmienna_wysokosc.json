@@ -1,0 +1,187 @@
+{
+ "title": "Zmienna wysokość — skos od x_s",
+ "description": "Wspornik o zmiennej wysokości ze skosem dolnej krawędzi od x_s = 150 mm.",
+ "variant": {
+  "name": "Zmienna wysokość — skos od x_s",
+  "geometry": {
+   "layout": "single",
+   "construction": "monolithic",
+   "b": 400.0,
+   "column": {
+    "h_col": 400.0,
+    "b_col": 400.0,
+    "above": 400.0,
+    "below": 700.0,
+    "cover": 30.0,
+    "phi_long": 20.0,
+    "phi_link": 8.0,
+    "N_Ed": 0.0
+   },
+   "right": {
+    "side": "R",
+    "l_c": 450.0,
+    "h_c": 600.0,
+    "h_e": 380.0,
+    "x_slope": 150.0,
+    "a_c": 260.0,
+    "plate": {
+     "kind": "steel_plate",
+     "length": 150.0,
+     "width": 300.0,
+     "thickness": 20.0,
+     "offset": 0.0
+    },
+    "a_H_user": null,
+    "d_user": null,
+    "x_c_user": null,
+    "z0_user": null
+   },
+   "left": {
+    "side": "L",
+    "l_c": 400.0,
+    "h_c": 550.0,
+    "h_e": 350.0,
+    "x_slope": 0.0,
+    "a_c": 250.0,
+    "plate": {
+     "kind": "steel_plate",
+     "length": 150.0,
+     "width": 300.0,
+     "thickness": 20.0,
+     "offset": 0.0
+    },
+    "a_H_user": null,
+    "d_user": null,
+    "x_c_user": null,
+    "z0_user": null
+   },
+   "left_mirror": true,
+   "precast": {
+    "support_type": "concentrated",
+    "dry_connection": true,
+    "f_bed": 0.0,
+    "restraint_considered": false
+   }
+  },
+  "materials": {
+   "concrete": "C30/37",
+   "steel_name": "B500SP",
+   "steel_fyk": 500.0,
+   "steel_class": "C",
+   "link_fyk": 500.0,
+   "Es": 200000.0,
+   "d_g": 16.0,
+   "exposure": "XC1",
+   "structural_class": "S4",
+   "delta_c_dev": 10.0,
+   "c_nom_user": null,
+   "design_situation": "persistent"
+  },
+  "loads": {
+   "actions": [
+    {
+     "name": "G1",
+     "side": "R",
+     "category": "G",
+     "nature": "characteristic",
+     "source": "beam_reaction",
+     "V": 200000.0,
+     "H": 0.0,
+     "M": 0.0,
+     "e_x": 0.0,
+     "e_y": 0.0,
+     "note": ""
+    },
+    {
+     "name": "Q1",
+     "side": "R",
+     "category": "Q_B",
+     "nature": "characteristic",
+     "source": "beam_reaction",
+     "V": 120000.0,
+     "H": 0.0,
+     "M": 0.0,
+     "e_x": 0.0,
+     "e_y": 0.0,
+     "note": ""
+    }
+   ],
+   "combination_mode": "auto",
+   "combinations": [],
+   "settings": {
+    "method": "6.10ab",
+    "gamma_G_sup": 1.35,
+    "gamma_G_inf": 1.0,
+    "gamma_Q": 1.5,
+    "xi": 0.85,
+    "include_sls": true,
+    "H_min_enabled": false,
+    "H_min_ratio": 0.2,
+    "H_min_source": ""
+   }
+  },
+  "reinforcement": {
+   "main": {
+    "auto": true,
+    "phi": 20.0,
+    "n_per_layer": 4,
+    "layers": 1,
+    "layer_gap": null,
+    "anchor_load": "loop",
+    "anchor_column": "bend_down",
+    "mandrel_load": null,
+    "mandrel_column": null,
+    "column_leg": null,
+    "front_leg": null,
+    "welded_bar_phi": null,
+    "bond": "poor",
+    "alpha3_mode": "conservative",
+    "K_alpha3": 0.05
+   },
+   "links": {
+    "auto": true,
+    "h_phi": 10.0,
+    "h_count": 3,
+    "h_zone": null,
+    "v_phi": 8.0,
+    "v_count": 0,
+    "i_phi": 10.0,
+    "i_count": 0,
+    "min_constructive_h": 2
+   },
+   "allowed_diameters": [
+    12.0,
+    14.0,
+    16.0,
+    20.0,
+    25.0,
+    28.0,
+    32.0
+   ]
+  },
+  "stm": {
+   "mode": "auto",
+   "lever_arm": "optimal",
+   "node_b_position": "in_column",
+   "strut_limit": "6.56",
+   "node_10pct": false,
+   "node_10pct_justification": "",
+   "include_aH": true,
+   "neglect_favourable_H": true,
+   "manual": {
+    "nodes": [],
+    "members": [],
+    "supports": [],
+    "loads": []
+   }
+  },
+  "normative": {
+   "edition": "EC2-2004-PL",
+   "overrides": {},
+   "override_notes": {},
+   "ndp_confirmed": false,
+   "confirmed_params": [],
+   "apply_engineering_recommendations": true
+  }
+ }
+}

@@ -10,3 +10,5 @@ venv/
 *.kwst.autosave
 .coverage
 htmlcov/
+tools/winres/
+*.exe.tmp

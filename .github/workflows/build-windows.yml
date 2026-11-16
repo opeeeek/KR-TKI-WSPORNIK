@@ -1,9 +1,9 @@
-name: Budowa Windows (.exe)
+name: Program Windows (.exe)
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Tag wydania GitHub (puste = tylko artefakt, bez wydania)"
+        description: "Znacznik wydania (np. v2.0.0) – puste: bez wydania"
         required: false
         default: ""
   push:
@@ -12,46 +12,48 @@ permissions:
   contents: write
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.7"
+          cache-dependency-path: app/go.sum
       - run: pip install -r requirements-dev.txt
-      - name: Testy
-        env:
-          QT_QPA_PLATFORM: offscreen
+      - name: Testy (silnik Python + test krzyżowy silnika JS)
         run: python -m pytest -q
-      - name: PyInstaller
-        run: pyinstaller --noconfirm --clean packaging/krotki_wspornik_st.spec
-      - name: Autotest zbudowanej aplikacji (--selftest)
-        shell: pwsh
-        run: |
-          $p = Start-Process -FilePath "dist/KrotkiWspornikST/KrotkiWspornikST.exe" -ArgumentList "--selftest" -Wait -PassThru
-          Get-Content "$env:APPDATA/KrotkiWspornikST/selftest.log" -ErrorAction SilentlyContinue
-          if ($p.ExitCode -ne 0) { throw "Autotest zakończony błędem $($p.ExitCode)" }
-      - name: Inno Setup
-        run: |
-          choco install innosetup -y --no-progress
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
-      - name: Paczka przenośna (zip)
-        shell: pwsh
-        run: Compress-Archive -Path dist/KrotkiWspornikST -DestinationPath dist/KrotkiWspornikST-1.0.0-portable-win64.zip
+      - name: Budowa interfejsu (app/app.html, webapp/wspornik.html)
+        run: python build_html.py
+      - name: Zasoby Windows (ikona, manifest)
+        run: python tools/make_syso.py
+      - name: Kompilacja KrotkiWspornikST.exe (Go + WebView2)
+        working-directory: app
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags "-H windowsgui -s -w" -o ../dist/KrotkiWspornikST.exe .
+      - name: Kontrola pliku .exe
+        run: python tools/check_exe.py dist/KrotkiWspornikST.exe
+      - name: Wersja przeglądarkowa
+        run: cp app/app.html dist/KrotkiWspornikST.html
       - uses: actions/upload-artifact@v4
         with:
-          name: KrotkiWspornikST-windows
-          path: |
-            dist/KrotkiWspornikST
-            dist/installer/*.exe
-      - name: Wydanie GitHub (instalator do pobrania)
-        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
+          name: KrotkiWspornikST
+          path: dist/*
+      - name: Wydanie
+        if: ${{ inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/v') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
-          target_commitish: ${{ github.sha }}
-          name: KRÓTKI WSPORNIK ST 1.0.0 (Windows)
+          name: Krótki wspornik ST ${{ inputs.release_tag || github.ref_name }}
           body_path: packaging/RELEASE_NOTES.md
           files: |
-            dist/installer/*.exe
-            dist/KrotkiWspornikST-1.0.0-portable-win64.zip
+            dist/KrotkiWspornikST.exe
+            dist/KrotkiWspornikST.html

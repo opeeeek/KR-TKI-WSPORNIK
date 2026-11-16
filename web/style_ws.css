@@ -1,0 +1,57 @@
+/* ---------- KRÓTKI WSPORNIK ST – uzupełnienia stylu (wspólny styl z programem BelkaŻB) */
+.st.na { background: var(--infobg); color: var(--info); }
+.bas { display: inline-block; font-size: 10.5px; color: var(--ink3); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-left: 4px; white-space: nowrap; }
+.verdict { margin: 0 0 14px; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); font-size: 13px; line-height: 1.5; }
+#out .verdict.ok { background: var(--okbg); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+#out .verdict.warn { background: var(--warnbg); border-color: var(--wrnln); }
+#out .verdict.fail { background: var(--failbg); border-color: var(--errln); }
+#out .verdict b { color: inherit; }
+.schhd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+.schhd > b { color: var(--acc3); font-size: 12.5px; margin-right: auto; }
+.schemewrap svg { display: block; width: 100%; height: auto; touch-action: none; }
+svg .hot { cursor: pointer; }
+svg .hot:hover { filter: drop-shadow(0 0 2px var(--acc)); }
+svg .hdl { cursor: grab; }
+svg .hdl:hover { r: 8.5; }
+body.dsdrag, body.dsdrag * { cursor: col-resize !important; user-select: none; }
+.etaleg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--ink2); margin: 6px 0 2px; }
+.etaleg span { display: inline-flex; align-items: center; gap: 5px; }
+.etaleg i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; opacity: .75; }
+.etaleg i.ln { height: 0; border-top: 3px dashed; background: none; opacity: 1; }
+.etaleg i.ln.s { border-top-style: solid; }
+.stmgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
+.stmgrid .box table.sched { min-width: 0; width: 100%; }
+.optgrid { display: grid; grid-template-columns: minmax(340px, 520px) minmax(0, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .optgrid { grid-template-columns: minmax(0, 1fr); } }
+.rbfig { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.rbfig > svg { flex: 1 1 520px; max-width: 100%; height: auto; }
+.rbfig .secs { display: flex; flex-wrap: wrap; gap: 10px; }
+.rbfig .secs svg { width: 300px; max-width: 100%; height: auto; }
+.rng { display: inline-flex; align-items: center; gap: 4px; }
+.rng .txt { width: 58px; text-align: right; height: 26px; }
+.eqx { font-family: "Cambria Math", "Times New Roman", serif; font-size: 14px; background: var(--panel2); border: 1px solid var(--line2); border-radius: 5px; padding: 7px 10px; margin: 4px 0; line-height: 1.6; overflow-x: auto; color: var(--ink); }
+ul.alist { margin: 4px 0; padding-left: 18px; font-size: 12.5px; color: var(--ink2); }
+ul.alist li { margin: 2px 0; }
+#modal .dlg.wide { max-width: 1100px; }
+table.sched.ndptab td { vertical-align: top; font-size: 12px; }
+table.sched.ndptab tr.over td { background: var(--warnbg); }
+table.sched tr.gov td { background: var(--acc2); }
+table.sched.opttab tr.nok td { color: var(--ink3); }
+table.sched.cmbt { min-width: 0; }
+.stmgrid table.kv td:nth-child(2) { white-space: nowrap; }
+.failnav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12.5px; color: var(--fail); font-weight: 600; }
+.failnav .goto { font-weight: 400; }
+.goto { border: 1px solid var(--line); background: var(--panel); color: var(--acc); border-radius: 4px; padding: 1px 7px; font-size: 11.5px; cursor: pointer; margin-left: 6px; }
+.goto:hover { background: var(--acc2); border-color: var(--addln); }
+:is(#report) h1 { font-size: 19px; }
+:is(#report) h4 { font-size: 12.5px; margin: 10px 0 2px; }
+:is(#report) h4 .r { font-weight: 400; font-size: 11px; margin-left: 8px; color: #333; }
+:is(#report) table.rtab { min-width: 0; width: 100%; margin: 6px 0 10px; font-size: 11.5px; color: #000; }
+:is(#report) table.rtab th { background: #f2f4f7; color: #000; }
+:is(#report) .verdict { border: 1px solid #999; padding: 8px 10px; border-radius: 4px; }
+:is(#report) .verdict.ok { border-color: var(--ok); } :is(#report) .verdict.fail { border-color: var(--fail); } :is(#report) .verdict.warn { border-color: var(--warn); }
+:is(#report) ul { margin: 4px 0 8px; padding-left: 20px; }
+:is(#report) li { margin: 1px 0; }
+:is(#report) .fig svg { max-width: 100%; height: auto; }
+@media print { .rtools, .dsumx { display: none !important; } #p-report { display: block !important; } }
+@media (max-width: 900px) { .stmgrid { grid-template-columns: minmax(0, 1fr); } }

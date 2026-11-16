@@ -1,76 +1,64 @@
-# Instrukcja użytkownika — KRÓTKI WSPORNIK ST
+# Instrukcja użytkownika — Krótki wspornik ST
 
 ## Układ okna
 
-* **Panel lewy — Dane wejściowe**: zakładki *Geometria*, *Materiały*, *Obciążenia*, *Model STM*, *Zbrojenie*,
-  *Parametry normowe*. Opis każdego parametru — w podpowiedzi (najechanie kursorem) oraz w *Pomoc → Pomoc —
-  parametry*. Pola z przełącznikiem „ręcznie” pozwalają nadpisać wartość wyznaczaną automatycznie (obok widać
-  wartość automatyczną).
-* **Panel centralny — Rysunek**: widoki *Geometria*, *Model STM*, *Naprężenia / wykorzystanie*, *Zbrojenie*
-  (Ctrl+1…4). Kółko myszy — zoom; prawy/środkowy przycisk lub Shift+lewy — przesuwanie; podwójne kliknięcie lub F —
-  dopasowanie; kliknięcie elementu — szczegóły i powiązane sprawdzenia; *Widok → Warstwy* — warstwy.
-* **Panel prawy — Wyniki**: werdykt, siły wewnętrzne, wymagane/przyjęte zbrojenie, element krytyczny, tabela
-  wykorzystania, komunikaty, szczegóły wskazanego elementu.
-* **Panel dolny — Szczegółowe obliczenia**: drzewo sprawdzeń z wzorem, symbolami, podstawieniem, E_d, R_d, η,
-  statusem i wnioskiem; filtr statusów.
+Pasek górny: nazwa projektu, plik, **Nowy / Otwórz / Zapisz / Zapisz jako…**, **Drukuj / PDF**, **Raport HTML**,
+**?** (o programie) i pole stanu (zielone – spełniono, pomarańczowe – warunkowo, czerwone – niespełnione / błąd).
+
+Zakładki:
+
+| Zakładka | Zawartość |
+|---|---|
+| **Dane** | grupy pól (geometria, płyta oporowa, słup, materiały i otulina, obciążenia i kombinacje, zbrojenie główne, strzemiona, model STM, parametry normowe, dane projektu); obok – schemat wspornika, model J.3 kombinacji decydującej i tabela kombinacji. Nad polami – podgląd wyników (chipy) i pasek doboru. Podział dane / schemat można przeciągać. |
+| **Model STM** | rysunek modelu wybranej kombinacji (pola naprężeń w kolorach η, siły, szerokości stref, reakcje), parametry modelu J.3, siły w prętach, kontrola modelu i walidacja automatyczna, założenia. Klik w węzeł / pręt – okno elementu z jego sprawdzeniami. |
+| **Zbrojenie wspornika** | rysunek zbrojenia i przekrój przy licu słupa, zbrojenie główne i strzemiona, zakotwienia (f_bd, σ_sd, l_b,rqd, α₁…α₅, l_bd, l_dost), zestawienie stali, przebieg doboru; eksport DXF. |
+| **Podsumowanie** | wynik, element krytyczny, karty wyników, komunikaty, lista niespełnionych warunków i tabela wszystkich sprawdzeń. |
+| **Optymalizacja** | siatka wymiarów, klasy betonu i średnice; wyniki z możliwością dodania najlepszego wariantu do projektu. |
+| **Raport obliczeń** | raport pełny lub skrócony; zapis HTML, .odt, DXF, JSON, CSV; druk / PDF. |
 
 ## Typowy przebieg pracy
 
-1. *Plik → Dane projektu* — nazwa, element, projektant.
-2. *Geometria* — układ (jedno-/dwustronny), wykonanie, wymiary słupa i wspornika, płyta oporowa.
-3. *Materiały* — klasa betonu (parametry wyznaczone automatycznie są widoczne od razu), stal, ekspozycja, klasa
-   konstrukcji.
-4. *Obciążenia* — oddziaływania (charakterystyczne lub obliczeniowe!), kategorie ψ, ewentualnie kombinacje ręczne.
-   Wartości obliczeniowe są stosowane bez współczynników częściowych.
-5. *Model STM* — domyślnie model automatyczny J.3 z optymalnym doborem x_c; opcjonalnie wartość użytkownika lub
-   model ręczny (przycisk „Kopiuj z modelu automatycznego” tworzy punkt wyjścia).
-6. *Zbrojenie* — dobór automatyczny lub ręczny; *Obliczenia → Przenieś dobrane zbrojenie do danych* utrwala dobór.
-7. *Parametry normowe* — przegląd NDP ze źródłami; potwierdzenie zgodności z NA (bez potwierdzenia wynik jest
-   warunkowy); nadpisanie wartości wymaga uzasadnienia.
-8. Obliczenia: automatycznie po każdej zmianie (*Obliczenia → Obliczenia automatyczne*) lub F5. Gdy wyniki są
-   nieaktualne, rysunek pokazuje wyłącznie geometrię z danych (bez modelu STM) i baner ostrzegawczy.
-9. Raport: *Plik → Eksport → Raport PDF* lub *Podgląd wydruku* (z drukowaniem). Eksporty: Excel, CSV, JSON, DXF.
+1. **Dane → Geometria / Płyta / Słup** – wymiary w mm. Wymiary wspornika można też zmieniać przeciągając niebieskie
+   uchwyty na schemacie (krok 5 mm).
+2. **Materiały i otulina** – klasa betonu, stal (lista ustawia f_yk i klasę ciągliwości), ekspozycja, klasa
+   konstrukcji, Δc_dev; otulina c_nom liczona automatycznie (pole ręczne – opcjonalnie).
+3. **Obciążenia** – oddziaływania V, H [kN], M [kNm], e_y [mm]; rodzaj *charakterystyczne* (kombinowane wg PN-EN 1990)
+   albo *obliczeniowe* (bez ponownego mnożenia przez γ). Kombinacje automatyczne lub ręczne.
+4. **Zbrojenie** – dobór automatyczny (domyślnie) albo ręczny; przycisk **⇩ Przyjmij dobrane jako ręczne** przepisuje
+   wynik doboru do pól, aby go dalej edytować.
+5. **Parametry normowe** – **Parametry NDP…**: wartości, źródła i statusy; potwierdzenie NDP oraz parametrów
+   „do potwierdzenia z treścią normy” (bez potwierdzenia nie są stosowane, a wynik jest warunkowy).
+6. **Podsumowanie** – kliknij warunek („Jak obliczono”: wzór, oznaczenia, podstawienie, uwagi), podstawę normową
+   (objaśnienie punktu) albo **pokaż →** (przejście do danych, od których zależy warunek – podświetlone).
+7. **Raport obliczeń** – zapis / druk.
 
-## Edycja na rysunku
+## Warianty i pliki
 
-Przy włączonej *Edycji uchwytami* pomarańczowe uchwyty pozwalają przeciągać: położenie obciążenia (a_c), koniec
-wspornika (l_c), wysokość na końcu (h_e) i przy licu (h_c). Fioletowy uchwyt węzła B zmienia x_c (program przełącza
-się na tryb „wartość użytkownika”). W modelu ręcznym przeciąga się węzły kratownicy. Każda zmiana aktualizuje dane,
-historię cofania i — w trybie automatycznym — wyniki.
-
-## Warianty, historia, pliki
-
-* Warianty: lista na pasku narzędzi; *Edycja → Kopiuj wariant* (Ctrl+D), zmiana nazwy, usuwanie.
-* Cofnij/Ponów: Ctrl+Z / Ctrl+Y (do 300 kroków).
-* Projekt `.kwst` (JSON), autozapis co N minut (*Edycja → Ustawienia*), *Plik → Odzyskaj autozapis*.
-* *Plik → Biblioteka typowych wsporników* — gotowe przykłady jako nowe warianty.
-* *Plik → Import obciążeń* — CSV (`;` lub `,`) lub Excel z kolumnami:
-  `name, side, category, nature, source, V_kN, H_kN, M_kNm, e_x_mm, e_y_mm, note`.
-
-## Optymalizacja
-
-*Obliczenia → Optymalizacja*: wybór celu (stal, beton, wysokość, wysięg, koszt, η_max), zakresów h_c, l_c, b, klas
-betonu i średnic. Każdy wariant przechodzi pełną analizę; niedopuszczalne są oznaczone z przyczyną. „Zastosuj
-wybrany wariant” dodaje go jako nowy wariant projektu.
+Warianty – zakładki nad schematem (**+** kopiuje bieżący, dwuklik zmienia nazwę, **×** usuwa); **Porównaj warianty**
+w pasku doboru. Projekt (wszystkie warianty) zapisywany jest w pliku `.kwst` (JSON); ostatni stan jest zapamiętywany
+automatycznie (program .exe: `%LOCALAPPDATA%\KrotkiWspornikST\autosave.json`, przeglądarka: pamięć strony).
+W wersji artefaktu dostępne są **Moje projekty** (zapis na koncie) i pobieranie plików.
 
 ## Interpretacja wyników
 
 | Status | Znaczenie |
 |---|---|
-| SPEŁNIONO | warunek spełniony (η ≤ 1) |
+| SPEŁNIONO | E_d ≤ R_d (η ≤ 1) |
 | NIE SPEŁNIONO | warunek normowy niespełniony |
-| WYMAGA OSOBNEJ WERYFIKACJI | poza zakresem programu, niespełnione zalecenie inżynierskie, parametr niepotwierdzony lub model poza zakresem |
+| WYMAGA OSOBNEJ WERYFIKACJI | poza zakresem programu albo zalecenie inżynierskie niespełnione |
 | NIE DOTYCZY | warunek nie ma zastosowania |
 
-Werdykt pozytywny („SPEŁNIONO W ZAKRESIE PROGRAMU”) jest możliwy wyłącznie przy braku błędów i niespełnionych
-sprawdzeń, w zakresie modelu i przy potwierdzonych NDP — zawsze z listą pozycji do osobnej weryfikacji.
+Wynik ogólny: **SPEŁNIONO W ZAKRESIE PROGRAMU** (NDP potwierdzone), **SPEŁNIONO WARUNKOWO** (NDP niepotwierdzone),
+**NIE SPEŁNIONO**, **MODEL POZA ZAKRESEM STOSOWANIA** (np. tan θ < 1 – element nie jest krótkim wspornikiem),
+**OBLICZENIA ZABLOKOWANE** (błędy danych lub modelu). Lokalny model wspornika nie sprawdza słupa, łożyska, spoin
+ani skręcania – te pozycje są wymienione jako wymagające osobnej weryfikacji.
 
-## Ustawienia
+## Skróty
 
-*Edycja → Ustawienia*: jednostki siły (kN/N/MN), długości (mm/cm/m), naprężeń, momentów; autozapis; skala
-interfejsu; język (polski/angielski — po ponownym uruchomieniu). *Widok → Motyw ciemny*.
+F2 – raport, Ctrl+S – zapisz, Ctrl+Shift+S – zapisz jako, Ctrl+O – otwórz, Ctrl+N – nowy, Ctrl+P – drukuj raport,
+Esc – zamknij okno.
 
-## Autotest
+## Silnik referencyjny
 
-`KrotkiWspornikST.exe --selftest` (lub `python -m kwst --selftest`) wykonuje obliczenia kontrolne, raport i eksporty;
-wynik zapisywany jest do `%APPDATA%\KrotkiWspornikST\selftest.log` (wersja okienkowa) lub na konsolę.
+`python -m kwst projekt.kwst` – analiza projektu silnikiem Python (wzorzec testów krzyżowych);
+`python -m kwst --selftest` – autotest silnika.

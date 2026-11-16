@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "krotki-wspornik-st"
-version = "1.0.0"
+version = "2.0.0"
 description = "KRÓTKI WSPORNIK ST — projektowanie krótkich wsporników żelbetowych metodą Strut-and-Tie wg PN-EN 1992-1-1"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.26", "PySide6>=6.6", "reportlab>=4.0", "openpyxl>=3.1", "ezdxf>=1.1"]
+dependencies = ["numpy>=1.26", "reportlab>=4.0", "openpyxl>=3.1", "ezdxf>=1.1"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pyinstaller>=6.5"]
+dev = ["pytest>=8.0"]
 
-[project.gui-scripts]
+[project.scripts]
 krotki-wspornik-st = "kwst.__main__:main"
 
 [tool.setuptools.packages.find]

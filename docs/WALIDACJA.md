@@ -15,7 +15,7 @@
 | Zgodność rysunku z modelem | sygnatura geometrii, współrzędne węzłów, kompletność prętów (`verify_scene`); wyniki nieaktualne → rysunek bez STM |
 | Powtarzalność | odcisk wyników (SHA-256 z E_d, R_d, statusów) — identyczny dla identycznych danych |
 
-## 2. Testy automatyczne (`tests/`, 85 testów)
+## 2. Testy automatyczne (`tests/`)
 
 | Plik | Zakres |
 |---|---|
@@ -28,7 +28,8 @@
 | `test_control_cases.py` | 12 przypadków kontrolnych (§2) + wspornik dwustronny, prefabrykat, NDP |
 | `test_reproducibility.py` | determinizm, zapis/odczyt bez zmiany wyników, kontrole walidacyjne |
 | `test_reports_exports.py` | PDF (w tym brak pozytywnego wniosku przy wyniku negatywnym), Excel/CSV/JSON/DXF, zgodność rysunku, biblioteka, optymalizacja |
-| `test_gui_smoke.py` | GUI offscreen: obliczenia, rysunek, uchwyty, cofanie, warianty, eksporty, zapis, motywy |
+| `test_js_engine.py` + `js/crosscheck.js` | **test krzyżowy**: silnik JavaScript programu (.exe / web) vs silnik Python na 27 przypadkach (12 kontrolnych + warianty: dwustronne, prefabrykat, skos, pręt przyspawany, e_y, α₃, x_c z warunku węzła, kombinacje SGU): identyczne werdykty, komunikaty błędów, statusy i E_d/R_d wszystkich sprawdzeń (tol. względna 10⁻⁶), zbrojenie, strzemiona, T, x_c, masa stali |
+| `js/ui_smoke.js` | test interfejsu w Chromium: edycja pól, blokada przy błędnej geometrii, przeciąganie uchwytu, okna objaśnień, NDP, okno elementu STM, warianty i porównanie, optymalizacja, eksport HTML/.odt/DXF, zapis i odczyt projektu |
 
 ## 3. Przypadki kontrolne (wymaganie §14)
 
@@ -56,6 +57,8 @@
 | material_engine | zweryfikowany | tabl. 3.1 vs wzory |
 | load_engine | zweryfikowany | testy kombinacji i ochrony przed podwójnym γ |
 | visualization_engine | zweryfikowany | automatyczna kontrola zgodności rysunku z modelem |
+| silnik JavaScript (web/engine_*.js) | zweryfikowany | test krzyżowy z silnikiem Python (identyczne wyniki na wszystkich przypadkach kontrolnych) |
+| rysunki programu (web/draw.js) | częściowo zweryfikowany | rysunek budowany wyłącznie z wyników obliczeń (węzły, strefy, zbrojenie); DXF kontrolowany odczytem (ezdxf) |
 | strut_checks, node_checks, tie_checks | częściowo zweryfikowany | obliczenia ręczne; **brak porównania z opublikowanym przykładem obliczeniowym** |
 | anchorage_engine | częściowo zweryfikowany | wzory sprawdzone ręcznie; interpretacja długości dostępnej (J.3(4)) do oceny projektanta |
 | reinforcement_design | częściowo zweryfikowany | długości w zestawieniu stali orientacyjne |

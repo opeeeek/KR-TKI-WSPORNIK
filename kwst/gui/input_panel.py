@@ -71,10 +71,10 @@ class InputPanel(QTabWidget):
         self._loading = False
         self.addTab(_scroll(self._geometry_tab()), tr("Geometria"))
         self.addTab(_scroll(self._materials_tab()), tr("Materiały"))
-        self.addTab(self._loads_tab(), tr("Obciążenia"))
+        self.addTab(_scroll(self._loads_tab()), tr("Obciążenia"))
         self.addTab(_scroll(self._stm_tab()), tr("Model STM"))
         self.addTab(_scroll(self._rebar_tab()), tr("Zbrojenie"))
-        self.addTab(self._norm_tab(), tr("Parametry normowe"))
+        self.addTab(_scroll(self._norm_tab()), tr("Parametry normowe"))
 
     # ------------------------------------------------------------------
     def _on_changed(self, path: str) -> None:

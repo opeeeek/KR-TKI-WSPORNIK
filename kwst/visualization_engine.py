@@ -276,6 +276,32 @@ def _stm(prims, gm, sr, result) -> None:
         mx = (a.x + b.x) / 2
         prims.append(Prim("text", "forces", [(mx, a.y + t.u / 2 + 30)], text=f"{t.id}: T = {_fmt_kN(t.force)}",
                           color="tie", size=9, ref=ref))
+    # pręty bez geometrii stref (model ręczny) — rysowane wg typu i znaku siły
+    drawn = {x.id for x in sr.struts} | {x.id for x in sr.ties}
+    for m in sr.truss.members:
+        if m.id in drawn:
+            continue
+        ref = f"member:{m.id}"
+        a = sr.truss.node(m.n1)
+        b = sr.truss.node(m.n2)
+        N = sr.solution.forces.get(m.id, 0.0)
+        is_strut = m.kind == "strut" or (m.kind == "any" and N < 0)
+        eta = eta_by_ref.get(ref)
+        prims.append(Prim("line", "stm_struts" if is_strut else "stm_ties", [(a.x, a.y), (b.x, b.y)],
+                          color="strut" if is_strut else "tie", width=3.2, dash=is_strut, ref=ref))
+        prims.append(Prim("line", "stress", [(a.x, a.y), (b.x, b.y)], color=eta_color(eta), width=5.0, ref=ref,
+                          eta=eta))
+        lab = f"{m.id}: {'C' if N < 0 else 'T'} = {_fmt_kN(abs(N))}"
+        prims.append(Prim("text", "forces", [((a.x + b.x) / 2, (a.y + b.y) / 2 + 25)], text=lab,
+                          color="strut" if is_strut else "tie", size=9, ref=ref))
+    for n in sr.truss.nodes:
+        if n.id in sr.nodes:
+            continue
+        ref = f"node:{n.id}"
+        prims.append(Prim("circle", "stm_nodes", [(n.x, n.y)], color="node", width=1.5, fill="node_fill",
+                          radius=11.0, ref=ref))
+        prims.append(Prim("text", "stm_nodes", [(n.x + 14, n.y + 14)], text=n.id, color="node", size=8, ref=ref,
+                          anchor="l"))
     # strefy węzłowe i węzły
     for nid, nz in sr.nodes.items():
         ref = f"node:{nid}"

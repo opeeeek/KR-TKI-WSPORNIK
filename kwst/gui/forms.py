@@ -86,6 +86,8 @@ class FormBinder(QObject):
     def add_to(self, form: QFormLayout, f: Field) -> QWidget:
         w, extra = self._make(f)
         lab = QLabel(tr(f.label))
+        lab.setWordWrap(True)
+        lab.setMinimumWidth(120)
         tip = f.help or help_for(f.path)
         if tip:
             lab.setToolTip(tip)
@@ -163,6 +165,8 @@ class FormBinder(QObject):
         if f.kind == "choice":
             cb = _NoWheelCombo()
             cb.setFocusPolicy(Qt.StrongFocus)
+            cb.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            cb.setMinimumContentsLength(14)
             for val, lab in f.choices:
                 cb.addItem(tr(lab), val)
             cb.currentIndexChanged.connect(lambda _i, f=f: self._commit(f))

@@ -134,9 +134,12 @@ class ResultsPanel(QWidget):
                           f"({c.combination})" if c else "")
         # wykorzystanie
         cols = STATUS_COLORS.get(self.theme, STATUS_COLORS["light"])
-        checks = sorted([x for x in res.checks if x.status != CheckStatus.NA],
-                        key=lambda x: (-{CheckStatus.FAIL: 3, CheckStatus.VERIFY: 1, CheckStatus.OK: 2}.get(x.status, 0),
-                                       -(x.eta if (x.eta is not None and math.isfinite(x.eta)) else 99)))
+        def key(x):
+            has = x.eta is not None
+            e = x.eta if (has and math.isfinite(x.eta)) else (1e9 if has else -1.0)
+            rank = {CheckStatus.FAIL: 0, CheckStatus.OK: 1, CheckStatus.VERIFY: 2}.get(x.status, 3)
+            return (rank if has or x.status == CheckStatus.FAIL else 3 + rank, -e)
+        checks = sorted([x for x in res.checks if x.status != CheckStatus.NA], key=key)
         self.util.setRowCount(len(checks))
         self._ids = []
         for r, ck in enumerate(checks):
@@ -155,6 +158,7 @@ class ResultsPanel(QWidget):
             st = QTableWidgetItem(tr_status(ck.status.value))
             st.setForeground(QBrush(QColor(cols.get(ck.status.value, "#000"))))
             self.util.setItem(r, 2, st)
+        self.util.setColumnWidth(1, 110)
         self.util.resizeColumnToContents(2)
         # komunikaty
         self.msgs.clear()

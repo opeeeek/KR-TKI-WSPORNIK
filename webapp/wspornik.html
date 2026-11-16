@@ -5877,6 +5877,8 @@ new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nod
 
 /* ------------------------------------------------------------ host / pliki */
 const ART = !!window.__ARTIFACT;
+const ART_EXT = ['json', 'html', 'csv', 'txt', 'zip', 'pdf', 'svg', 'png', 'md'];   // rozszerzenia przyjmowane przez pobieranie w artefakcie
+const PEXT = ART ? '.json' : '.kwst';                // plik projektu (w artefakcie – .json, ten sam format)
 const Cap = { dl: null, db: null, col: null, list: [], ready: false, slow: false, err: null };
 let cloudId = null, cloudName = '';
 const pending = {}; let reqId = 0;
@@ -5943,7 +5945,15 @@ async function saveAny(name, content, mime, filter, okMsg, b64) {
     return;
   }
   const data = b64 ? new Blob([content], { type: mime }) : content;
-  if (ART) { await offerFile(name, data, (okMsg || 'Plik') + ' pobrany.'); return; }
+  if (ART) {
+    const ext = (name.match(/\.([a-z0-9]+)$/i) || ['', ''])[1].toLowerCase();
+    if (!ART_EXT.includes(ext) && window.WR && window.WR.zip) {        // .odt, .dxf: w artefakcie pobierane jako .zip
+      const bytes = b64 ? content : new TextEncoder().encode(content);
+      await offerFile(name.replace(/\.[a-z0-9]+$/i, '.zip'), new Blob([window.WR.zip([{ name, data: bytes }])], { type: 'application/zip' }), (okMsg || 'Plik') + ` pobrany (archiwum .zip z plikiem .${ext}).`);
+      return;
+    }
+    await offerFile(name, data, (okMsg || 'Plik') + ' pobrany.'); return;
+  }
   await download(name, data, mime);
 }
 U.saveAny = saveAny;
@@ -5953,7 +5963,7 @@ async function saveFile(as) {
     if (r && r.ok) { filePath = r.path; dirty = false; updateTitle(); autosave(); toast('Zapisano: ' + baseName(filePath)); } else if (r && r.err) toast('Błąd zapisu: ' + r.err);
   } else if (ART) {
     if (Cap.col && !as) { await cloudSave(false); return; }
-    if (await offerFile(safeName('.kwst'), projectJSON(), 'Plik projektu pobrany.')) { dirty = false; updateTitle(); }
+    if (await offerFile(safeName(PEXT), projectJSON(), 'Plik projektu pobrany.')) { dirty = false; updateTitle(); }
     else if (!Cap.dl && !Cap.col) toast('Zapis niedostępny w tym widoku – zmiany są pamiętane tylko w tej przeglądarce.', 4000);
   } else if (await download(safeName('.kwst'), projectJSON(), 'application/json') !== false) { dirty = false; updateTitle(); }
 }
@@ -6004,12 +6014,12 @@ function renderCloud() {
   else if (!Cap.ready && !Cap.list.length) list = `<p class="pempty">${Cap.slow ? 'Nie można teraz połączyć się z zapisanymi projektami. Spróbuj za chwilę.' : 'Wczytywanie zapisanych projektów…'}</p>`;
   else if (!Cap.list.length) list = `<p class="pempty">Nie masz jeszcze zapisanych projektów. Kliknij „Zapisz bieżący”, aby zapisać wspornik na swoim koncie – będzie dostępny na każdym urządzeniu, na którym otworzysz tę stronę.</p>`;
   else list = `<ul class="plist">${Cap.list.map(p => `<li class="${p.id === cloudId ? 'cur' : ''}"><div class="pn"><b>${esc(p.name || 'bez nazwy')}</b><small>zapisano ${esc(fmtDate(p.saved))}${p.summary ? ' · ' + esc(p.summary) : ''}</small></div><button class="btn" data-po="${esc(p.id)}">Otwórz</button><button class="btn dng" data-pd="${esc(p.id)}">Usuń</button></li>`).join('')}</ul>`;
-  m.innerHTML = `<div class="dlg"><h3>Moje projekty</h3><p>Projekty zapisane na Twoim koncie claude.ai – widoczne tylko dla Ciebie.</p><div class="dbtn" style="justify-content:flex-start;margin-top:8px"><button class="btn pri" id="pcSave">${cloudId ? 'Zapisz zmiany' : 'Zapisz bieżący'}</button>${cloudId ? '<button class="btn" id="pcNew">Zapisz jako nowy</button>' : ''}${Cap.dl ? '<button class="btn" id="pcFile">Pobierz plik .kwst</button>' : ''}</div>${list}<div class="dbtn"><button class="btn" id="pcClose">Zamknij</button></div></div>`;
+  m.innerHTML = `<div class="dlg"><h3>Moje projekty</h3><p>Projekty zapisane na Twoim koncie claude.ai – widoczne tylko dla Ciebie.</p><div class="dbtn" style="justify-content:flex-start;margin-top:8px"><button class="btn pri" id="pcSave">${cloudId ? 'Zapisz zmiany' : 'Zapisz bieżący'}</button>${cloudId ? '<button class="btn" id="pcNew">Zapisz jako nowy</button>' : ''}${Cap.dl ? '<button class="btn" id="pcFile">Pobierz plik projektu</button>' : ''}</div>${list}<div class="dbtn"><button class="btn" id="pcClose">Zamknij</button></div></div>`;
   m.style.display = 'flex';
   $('#pcClose', m).onclick = () => { cloudOpen = false; m.style.display = 'none'; };
   $('#pcSave', m).onclick = () => cloudSave(false);
   if ($('#pcNew', m)) $('#pcNew', m).onclick = () => cloudSave(true);
-  if ($('#pcFile', m)) $('#pcFile', m).onclick = () => offerFile(safeName('.kwst'), projectJSON(), 'Plik projektu pobrany.');
+  if ($('#pcFile', m)) $('#pcFile', m).onclick = () => offerFile(safeName(PEXT), projectJSON(), 'Plik projektu pobrany.');
   $$('[data-po]', m).forEach(b => b.onclick = () => cloudLoad(b.dataset.po));
   $$('[data-pd]', m).forEach(b => b.onclick = () => cloudDelete(b.dataset.pd));
 }
@@ -6040,7 +6050,7 @@ async function cloudDelete(id) {
   openCloud();
 }
 function about() {
-  const web = ART ? '<p>Wersja przeglądarkowa: projekty zapisujesz na swoim koncie („Moje projekty”) albo jako plik .kwst – ten sam plik otworzy program KrotkiWspornikST.exe. Ostatni stan jest pamiętany w tej przeglądarce.</p>' : '';
+  const web = ART ? '<p>Wersja przeglądarkowa: projekty zapisujesz na swoim koncie („Moje projekty”) albo jako plik .json (format .kwst) – ten sam plik otworzy program KrotkiWspornikST.exe. Ostatni stan jest pamiętany w tej przeglądarce.</p>' : '';
   openModal(`<h3>Krótki wspornik ST ${VER} – wsporniki krótkie metodą Strut-and-Tie</h3>
   <p>Projektowanie i sprawdzanie krótkich wsporników żelbetowych modelem kratownicowym (STM) wg PN-EN 1992-1-1 (6.5, zał. J.3, rozdz. 8, 9, 10.9.5) z parametrami krajowymi do potwierdzenia przez projektanta.</p>
   <ul><li><b>Model STM</b> – zał. J.3, rys. J.5: węzeł A (CCT) pod płytą, węzeł B (CCC) przy licu słupa, cięgno; wysokość strefy ściskanej x<sub>c</sub> dobierana jako najkorzystniejsze dopuszczalne pole naprężeń (1,0 ≤ tan θ ≤ 2,5); kontrola równowagi, stateczności i zgodności rozwiązania analitycznego z macierzowym; model ręczny dowolnej kratownicy.</li>

@@ -134,11 +134,16 @@ class ResultsPanel(QWidget):
                           f"({c.combination})" if c else "")
         # wykorzystanie
         cols = STATUS_COLORS.get(self.theme, STATUS_COLORS["light"])
+        from ..analysis import STRENGTH_GROUPS
+
         def key(x):
             has = x.eta is not None
             e = x.eta if (has and math.isfinite(x.eta)) else (1e9 if has else -1.0)
             rank = {CheckStatus.FAIL: 0, CheckStatus.OK: 1, CheckStatus.VERIFY: 2}.get(x.status, 3)
-            return (rank if has or x.status == CheckStatus.FAIL else 3 + rank, -e)
+            strength = x.group in STRENGTH_GROUPS and not x.id.endswith(("_T81", "_LEG"))
+            if x.status == CheckStatus.FAIL:
+                return (0, 0, -e)
+            return (rank if has else 3 + rank, 0 if strength else 1, -e)
         checks = sorted([x for x in res.checks if x.status != CheckStatus.NA], key=key)
         self.util.setRowCount(len(checks))
         self._ids = []

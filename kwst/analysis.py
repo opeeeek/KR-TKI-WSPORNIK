@@ -317,13 +317,29 @@ def _anchor_capacity(a: AnchorageInput, mats: Materials, ps: ParameterSet) -> fl
     return lo
 
 
+def _mandrel_capacity(ml: MainLayout, bend: tuple | None, mats: Materials, ps: ParameterSet) -> float:
+    """Największa siła w cięgnie spełniająca warunek (8.1) dla danej średnicy trzpienia."""
+    if bend is None:
+        return math.inf
+    phi_m, ab = bend[0], bend[1]
+    if phi_m <= 0 or ab <= 0:
+        return 0.0
+    c = mats.concrete
+    fcd = min(c.fcd, c.alpha_cc * ps.v("fcd_mandrel_cap") / c.gamma_c)
+    Fbt_max = phi_m * fcd / (1.0 / ab + 1.0 / (2.0 * ml.phi))
+    return Fbt_max * ml.n * ml.layers
+
+
 def _anchor_caps(gm, ml, cv, mb, mats, ps, double) -> dict[str, float]:
+    """Nośność zakotwień i gięcia cięgna — dodatkowe kryterium doboru pola naprężeń (x_c)."""
     caps = {}
     for sd in gm.sides:
         su = _anchor_setup(gm, sd, ml, cv, mb, 0.0, None, ps, double, 0.0)
         c = _anchor_capacity(su.load, mats, ps)
+        c = min(c, _mandrel_capacity(ml, su.load_bend, mats, ps))
         if not double:
             c = min(c, _anchor_capacity(su.col, mats, ps))
+            c = min(c, _mandrel_capacity(ml, su.col_bend, mats, ps))
         caps[sd] = c
     return caps
 

@@ -132,15 +132,36 @@ def build_scene(variant: Variant, result=None, mode: str = "stm", combination: s
         _loads_input(prims, gm, variant)
     _dims(prims, gm)
     _handles(prims, gm, variant, result if use_result else None, combo)
-    pts = [q for p in prims if p.layer in ("column", "outline", "dims") for q in p.pts]
+    pts = [q for p in prims if p.layer in ("column", "outline", "dims", "rebar_main") for q in p.pts]
     return Scene(prims, _bounds(pts), mode, combo, gm.signature(), node_coords, stale=stale or result is None,
                  title=VIEW_NAMES.get(mode, mode))
 
 
 # ---------------------------------------------------------------------------
+def column_extent(gm: GeometryModel) -> tuple[float, float]:
+    """Zakres rysowanego fragmentu słupa (rysunek z liniami urwania; obliczenia używają pełnej geometrii)."""
+    top = min(gm.above, max(250.0, 0.5 * gm.h_max))
+    bot = -(gm.h_max + min(gm.below, max(300.0, 0.6 * gm.h_max)))
+    return top, bot
+
+
+def _break_line(x0: float, x1: float, y: float, amp: float) -> list[Point]:
+    xm = (x0 + x1) / 2.0
+    w = (x1 - x0)
+    return [(x0 - 20, y), (xm - 0.06 * w, y), (xm - 0.02 * w, y + amp), (xm + 0.02 * w, y - amp),
+            (xm + 0.06 * w, y), (x1 + 20, y)]
+
+
 def _geometry(prims: list[Prim], gm: GeometryModel) -> None:
-    prims.append(Prim("polygon", "column", gm.column_rect(), color="concrete_edge", width=1.2, fill="column_fill",
-                      ref="geom:column"))
+    h2 = gm.h_col / 2.0
+    top, bot = column_extent(gm)
+    prims.append(Prim("polygon", "column", [(-h2, top), (h2, top), (h2, bot), (-h2, bot)], color="concrete_edge",
+                      width=1.2, fill="column_fill", ref="geom:column"))
+    amp = 0.06 * gm.h_col
+    if gm.above > top + 1e-6:
+        prims.append(Prim("polyline", "column", _break_line(-h2, h2, top, amp), color="concrete_edge", width=1.0))
+    if -(gm.h_max + gm.below) < bot - 1e-6:
+        prims.append(Prim("polyline", "column", _break_line(-h2, h2, bot, amp), color="concrete_edge", width=1.0))
     for sd, sg in gm.sides.items():
         prims.append(Prim("polygon", "outline", sg.outline(), color="concrete_edge", width=1.6, fill="concrete_fill",
                           ref=f"geom:corbel:{sd}"))
@@ -152,20 +173,24 @@ def _geometry(prims: list[Prim], gm: GeometryModel) -> None:
         t = max(p.thickness, 6.0) if p.kind != "direct" else 4.0
         prims.append(Prim("polygon", "plate", [(x0, 0), (x1, 0), (x1, t), (x0, t)], color="plate_edge", width=1.0,
                           fill="plate_fill", ref=f"geom:plate:{sd}"))
-    h2 = gm.h_col / 2.0
-    top, bot = gm.above, -(gm.h_max + gm.below)
-    prims.append(Prim("line", "axes", [(0.0, top + 40), (0.0, bot - 40)], color="axis", width=0.8, dash=True))
-    prims.append(Prim("text", "axes", [(0.0, top + 60)], text="oś słupa", color="axis", size=8))
-    prims.append(Prim("line", "axes", [(-h2 - 80, 0.0), (h2 + max(s.l_c for s in gm.sides.values()) + 80, 0.0)],
-                      color="axis", width=0.5, dash=True))
+    prims.append(Prim("line", "axes", [(0.0, top + 30), (0.0, bot - 30)], color="axis", width=0.8, dash=True))
+    prims.append(Prim("text", "axes", [(0.0, top + 50)], text="oś słupa", color="axis", size=8))
+    xr = h2 + max(s.l_c for s in gm.sides.values()) + 60
+    xl = -xr if "L" in gm.sides else -h2 - 60
+    prims.append(Prim("line", "axes", [(xl, 0.0), (xr, 0.0)], color="axis", width=0.5, dash=True))
 
 
 def _arrow(prims, layer, tip: Point, vec: Point, color: str, text: str, ref: str = "", width: float = 2.0):
     tail = (tip[0] - vec[0], tip[1] - vec[1])
     prims.append(Prim("arrow", layer, [tail, tip], color=color, width=width, ref=ref))
     if text:
-        prims.append(Prim("text", layer, [(tail[0], tail[1])], text=text, color=color, size=9, ref=ref,
-                          anchor="l" if vec[0] <= 0 else "r"))
+        mid = ((tail[0] + tip[0]) / 2, (tail[1] + tip[1]) / 2)
+        if abs(vec[0]) < 1e-9:      # strzałka pionowa — opis z boku
+            prims.append(Prim("text", layer, [(mid[0] + 18, mid[1])], text=text, color=color, size=9, ref=ref,
+                              anchor="l"))
+        else:                       # strzałka pozioma — opis nad strzałką
+            prims.append(Prim("text", layer, [(mid[0], mid[1] + 26)], text=text, color=color, size=9, ref=ref,
+                              anchor="c"))
 
 
 def _loads(prims, gm, sr) -> None:
@@ -178,8 +203,11 @@ def _loads(prims, gm, sr) -> None:
         _arrow(prims, "loads", (x_load, top), (0.0, -L), "load", f"V_Ed = {_fmt_kN(p.V)}", f"load:V{sd}", 2.4)
         if abs(p.H_raw) > 1e-6:
             dirx = sg.s * (1 if p.H_raw > 0 else -1)
-            _arrow(prims, "loads", (x_load + dirx * 0.0, top + 15), (dirx * L * 0.8, 0.0), "load",
-                   f"H_Ed = {_fmt_kN(p.H_raw)}", f"load:H{sd}", 2.0)
+            tail = (x_load, top + 12)
+            tip = (x_load + dirx * L * 0.8, top + 12)
+            prims.append(Prim("arrow", "loads", [tail, tip], color="load", width=2.0, ref=f"load:H{sd}"))
+            prims.append(Prim("text", "loads", [(tip[0], tip[1] + 28)], text=f"H_Ed = {_fmt_kN(p.H_raw)}",
+                              color="load", size=9, ref=f"load:H{sd}", anchor="l" if dirx > 0 else "r"))
 
 
 def _loads_input(prims, gm, variant) -> None:
@@ -214,10 +242,14 @@ def _stm(prims, gm, sr, result) -> None:
         prims.append(Prim("text", "forces", [(mx, my)], text=f"{s.id}: C = {_fmt_kN(abs(s.force))}", color="strut",
                           size=9, ref=ref))
         # szerokości efektywne
-        prims.append(Prim("text", "stm_zones", [(a.x, a.y - 0.0)], text=f"w = {s.w1:.0f}", color="strut", size=7,
-                          ref=ref, anchor="l"))
-        prims.append(Prim("text", "stm_zones", [(b.x, b.y)], text=f"w = {s.w2:.0f}", color="strut", size=7, ref=ref,
-                          anchor="l"))
+        Ls = math.hypot(b.x - a.x, b.y - a.y) or 1.0
+        nx, ny = (b.y - a.y) / Ls, -(b.x - a.x) / Ls
+        if nx < 0:
+            nx, ny = -nx, -ny
+        for (px, py), w in (((a.x + (b.x - a.x) * 0.18, a.y + (b.y - a.y) * 0.18), s.w1),
+                            ((a.x + (b.x - a.x) * 0.82, a.y + (b.y - a.y) * 0.82), s.w2)):
+            prims.append(Prim("text", "stm_zones", [(px + nx * (w / 2 + 25), py + ny * (w / 2 + 25))],
+                              text=f"w = {w:.0f}", color="strut", size=7, ref=ref, anchor="l"))
         # kąt nachylenia przy węźle B
         ang0 = 0.0 if b.x < a.x else 180.0 - s.theta_deg
         R = 0.35 * s.length
@@ -242,8 +274,8 @@ def _stm(prims, gm, sr, result) -> None:
         prims.append(Prim("line", "stress", [(a.x, a.y), (b.x, b.y)], color=eta_color(eta), width=5.0, ref=ref,
                           eta=eta))
         mx = (a.x + b.x) / 2
-        prims.append(Prim("text", "forces", [(mx, a.y + 30)], text=f"{t.id}: T = {_fmt_kN(t.force)}", color="tie",
-                          size=9, ref=ref))
+        prims.append(Prim("text", "forces", [(mx, a.y + t.u / 2 + 30)], text=f"{t.id}: T = {_fmt_kN(t.force)}",
+                          color="tie", size=9, ref=ref))
     # strefy węzłowe i węzły
     for nid, nz in sr.nodes.items():
         ref = f"node:{nid}"
@@ -252,7 +284,7 @@ def _stm(prims, gm, sr, result) -> None:
             prims.append(Prim("polygon", "stm_zones", nz.polygon, color="node", width=1.0, dash=True, ref=ref))
             prims.append(Prim("polygon", "stress", nz.polygon, color=eta_color(eta), width=1.0, fill=eta_color(eta),
                               alpha=0.5, ref=ref, eta=eta))
-        prims.append(Prim("circle", "stm_nodes", [nz.center], color="node", width=1.5, fill="node_fill", radius=9.0,
+        prims.append(Prim("circle", "stm_nodes", [nz.center], color="node", width=1.5, fill="node_fill", radius=11.0,
                           ref=ref))
         prims.append(Prim("text", "stm_nodes", [(nz.center[0] + 14, nz.center[1] + 14)],
                           text=f"{nid} ({nz.type})" if nz.type in ("CCC", "CCT", "CTT") else nid, color="node",
@@ -274,11 +306,11 @@ def _stm(prims, gm, sr, result) -> None:
         n = sr.truss.node(nid)
         Lr = 110.0
         if abs(rx) > 1.0:
-            _arrow(prims, "reactions", (n.x, n.y), (math.copysign(Lr, rx), 0.0), "reaction", _fmt_kN(abs(rx)),
-                   f"node:{nid}", 1.6)
+            _arrow(prims, "reactions", (n.x, n.y - (35.0 if nid == "C" else 0.0)), (math.copysign(Lr, rx), 0.0),
+                   "reaction", f"R_x = {_fmt_kN(abs(rx))}", f"node:{nid}", 1.6)
         if abs(ry) > 1.0:
-            _arrow(prims, "reactions", (n.x, n.y), (0.0, math.copysign(Lr, ry)), "reaction", _fmt_kN(abs(ry)),
-                   f"node:{nid}", 1.6)
+            _arrow(prims, "reactions", (n.x, n.y), (0.0, math.copysign(Lr, ry)), "reaction",
+                   f"R_y = {_fmt_kN(abs(ry))}", f"node:{nid}", 1.6)
     # element krytyczny
     if crit_ref:
         for nid, nz in sr.nodes.items():
@@ -302,7 +334,8 @@ def _rebar(prims, gm, result) -> None:
     # słup: pręty podłużne
     for x in (-h2 + gm.column_cover + gm.column_phi_link + gm.column_phi_long / 2,
               h2 - gm.column_cover - gm.column_phi_link - gm.column_phi_long / 2):
-        prims.append(Prim("line", "rebar_main", [(x, gm.above), (x, -(gm.h_max + gm.below))], color="rebar_col",
+        ctop, cbot = column_extent(gm)
+        prims.append(Prim("line", "rebar_main", [(x, ctop), (x, cbot)], color="rebar_col",
                           width=1.2, dash=True, ref="rebar:column"))
     # otulina (linia przerywana)
     for sd, sg in gm.sides.items():
